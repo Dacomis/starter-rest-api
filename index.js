@@ -1,90 +1,73 @@
 const express = require('express')
 const app = express()
-const db = require('cyclic-dynamodb')
+const AWS = require("aws-sdk");
+const s3 = new AWS.S3()
+const bodyParser = require('body-parser');
 
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+app.use(bodyParser.json())
 
-// #############################################################################
-// This configures static hosting for files in /public that have the extensions
-// listed in the array.
-// var options = {
-//   dotfiles: 'ignore',
-//   etag: false,
-//   extensions: ['htm', 'html','css','js','ico','jpg','jpeg','png','svg'],
-//   index: ['index.html'],
-//   maxAge: '1m',
-//   redirect: false
-// }
-// app.use(express.static('public', options))
-// #############################################################################
+// curl -i https://some-app.cyclic.app/myFile.txt
+app.get('*', async (req,res) => {
+  let filename = req.path.slice(1)
 
-// Create or Update an item
-app.post('/:col/:key', async (req, res) => {
-  console.log(req.body)
+  try {
+    let s3File = await s3.getObject({
+      Bucket: process.env.BUCKET,
+      Key: filename,
+    }).promise()
 
-  const col = req.params.col
-  const key = req.params.key
-  console.log(`from collection: ${col} delete key: ${key} with params ${JSON.stringify(req.params)}`)
-  const item = await db.collection(col).set(key, req.body)
-  console.log(JSON.stringify(item, null, 2))
-  res.json(item).end()
+    res.set('Content-type', s3File.ContentType)
+    res.send(s3File.Body.toString()).end()
+  } catch (error) {
+    if (error.code === 'NoSuchKey') {
+      console.log(`No such key ${filename}`)
+      res.sendStatus(404).end()
+    } else {
+      console.log(error)
+      res.sendStatus(500).end()
+    }
+  }
 })
 
-// Delete an item
-app.delete('/:col/:key', async (req, res) => {
-  const col = req.params.col
-  const key = req.params.key
-  console.log(`from collection: ${col} delete key: ${key} with params ${JSON.stringify(req.params)}`)
-  const item = await db.collection(col).delete(key)
-  console.log(JSON.stringify(item, null, 2))
-  res.json(item).end()
+
+// curl -i -XPUT --data '{"k1":"value 1", "k2": "value 2"}' -H 'Content-type: application/json' https://some-app.cyclic.app/myFile.txt
+app.put('*', async (req,res) => {
+  let filename = req.path.slice(1)
+
+  console.log(typeof req.body)
+
+  await s3.putObject({
+    Body: JSON.stringify(req.body),
+    Bucket: process.env.BUCKET,
+    Key: filename,
+  }).promise()
+
+  res.set('Content-type', 'text/plain')
+  res.send('ok').end()
 })
 
-// Get a single item
-app.get('/:col/:key', async (req, res) => {
-  const col = req.params.col
-  const key = req.params.key
-  console.log(`from collection: ${col} get key: ${key} with params ${JSON.stringify(req.params)}`)
-  const item = await db.collection(col).get(key)
-  console.log(JSON.stringify(item, null, 2))
-  res.json(item).end()
+// curl -i -XDELETE https://some-app.cyclic.app/myFile.txt
+app.delete('*', async (req,res) => {
+  let filename = req.path.slice(1)
+
+  await s3.deleteObject({
+    Bucket: process.env.BUCKET,
+    Key: filename,
+  }).promise()
+
+  res.set('Content-type', 'text/plain')
+  res.send('ok').end()
 })
 
-// Get a full listing
-app.get('/:col', async (req, res) => {
-  const col = req.params.col
-  console.log(`list collection: ${col} with params: ${JSON.stringify(req.params)}`)
-  const items = await db.collection(col).list()
-  console.log(JSON.stringify(items, null, 2))
-  res.json(items).end()
-})
-
+// /////////////////////////////////////////////////////////////////////////////
 // Catch all handler for all other request.
-app.use('*', (req, res) => {
-  res.json({ msg: 'no route handler found' }).end()
+app.use('*', (req,res) => {
+  res.sendStatus(404).end()
 })
 
-
-
-
-// const CyclicDb = require("cyclic-dynamodb")
-// const db = CyclicDb("red-silly-scorpionCyclicDB")
-
-// const animals = db.collection("animals")
-
-// // create an item in collection with key "leo"
-// let leo = await animals.set("leo", {
-//   type: "cat",
-//   color: "orange"
-// })
-
-// // get an item at key "leo" from collection animals
-// let item = await animals.get("leo")
-// console.log(item)
-
+// /////////////////////////////////////////////////////////////////////////////
 // Start the server
 const port = process.env.PORT || 3000
 app.listen(port, () => {
-  console.log(`index.js listening on ${port}`)
+  console.log(`index.js listening at http://localhost:${port}`)
 })
