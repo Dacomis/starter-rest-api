@@ -65,6 +65,24 @@ app.use('*', (req, res) => {
   res.json({ msg: 'no route handler found' }).end()
 })
 
+
+
+
+// const CyclicDb = require("cyclic-dynamodb")
+// const db = CyclicDb("red-silly-scorpionCyclicDB")
+
+// const animals = db.collection("animals")
+
+// // create an item in collection with key "leo"
+// let leo = await animals.set("leo", {
+//   type: "cat",
+//   color: "orange"
+// })
+
+// // get an item at key "leo" from collection animals
+// let item = await animals.get("leo")
+// console.log(item)
+
 // Start the server
 const port = process.env.PORT || 3000
 app.listen(port, () => {
