@@ -1,0 +1,1 @@
+{"k1":"value 1 - first", "k2": "value 2 - second"}
